@@ -11,8 +11,8 @@
 #define MAC_ADDRSTRLEN 2*6+5+1
 struct ip_pair
 {
-    char src[20];
-    char dst[20];
+    char src[50];
+    char dst[50];
     int cnt;
 };
 int len = 0;
@@ -33,6 +33,13 @@ void print_macaddr(unsigned char *mac_addr)
         if(i!=5) printf(":");
     }
     printf("\n");
+}
+char* print_ipv6(void *i)
+{
+    static char str[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, i, str, sizeof(str));
+    printf("%s\n",str);
+    return str;
 }
 char* print_ip(void *i)
 {
@@ -102,6 +109,31 @@ void dump_ip(u_int32_t length,const u_char *content,struct ip_pair arr[])
             break;
     }
 }
+void dump_ipv6(u_int32_t length,const u_char *content,struct ip_pair arr[])
+{
+    struct ip *ip = (struct ip *)(content + ETHER_HDR_LEN);
+    u_char protocol = ip->ip_p;
+    printf("|- Sour. IP Addr: ");
+    char *src;
+    src = print_ipv6(&ip->ip_src);
+    printf("|- Dest. IP Addr: ");
+    char *dst;
+    dst = print_ipv6(&ip->ip_src);
+    check_ip(src,dst,arr);
+    ip_total++;
+    switch (protocol) 
+    {
+        case IPPROTO_UDP:
+            printf("| UDP packet:\n");
+            dump_udp(length, content);
+            break;
+
+        case IPPROTO_TCP:
+            printf("| TCP packet:\n");
+            dump_tcp(length, content);
+            break;
+    }
+}
 int main(int argc, const char * argv[]) 
 {
     struct ip_pair arr[1000];
@@ -113,7 +145,7 @@ int main(int argc, const char * argv[])
     if(!strcmp(argv[1],"-r"))
     {
         handler = pcap_open_offline(argv[2], errbuf);
-        if(!handler) 
+        if(!handler)
         {
             fprintf(stderr, "pcap_open_offline: %s\n", errbuf);
             exit(1);
@@ -166,6 +198,10 @@ int main(int argc, const char * argv[])
 	            case ETHERTYPE_IP:
                 printf("| IP:\n");
                 dump_ip(header->caplen,content,arr);
+                break;
+                case ETHERTYPE_IPV6:
+                printf("| IPv6:\n");
+                dump_ipv6(header->caplen,content,arr);
                 break;
             }
             printf("+-----------------------------------------------+\n\n");
